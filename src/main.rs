@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Token {
     Number(u32),
     Ident(String),
@@ -99,9 +99,15 @@ impl<'a> Lexer<'a> {
     }
 
     fn tokenize_all(&mut self) {
-        while !self.remaining_text.is_empty() {
+        loop {
             let token = self.tokenize_next();
-            self.tokens.push(token);
+            match token {
+                Token::Eof => {
+                    self.tokens.push(token);
+                    break;
+                }
+                _ => self.tokens.push(token),
+            };
         }
     }
 }
@@ -115,8 +121,14 @@ impl<'a> Parser<'a> {
         Self { tokens }
     }
 
-    fn consume_next_token(&mut self) -> &Token {
+    fn consume_next_token(&mut self, expected_token: Token) -> &Token {
         let token = &self.tokens[0];
+        if token != &expected_token {
+            panic!(
+                "Unexpected token: {:?}, expected: {:?}",
+                token, expected_token
+            );
+        }
         self.tokens = &self.tokens[1..];
         token
     }
@@ -130,18 +142,17 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> f32 {
-        // expression => term + term | term - term | term
         let mut left = self.term();
 
         while let Some(next_token) = self.peek_next_token() {
             match next_token {
                 Token::Plus => {
-                    self.consume_next_token();
+                    self.consume_next_token(Token::Plus);
                     let right = self.term();
                     left += right;
                 }
                 Token::Minus => {
-                    self.consume_next_token();
+                    self.consume_next_token(Token::Minus);
                     let right = self.term();
                     left -= right;
                 }
@@ -152,18 +163,17 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> f32 {
-        // term => factor * factor | factor / factor | factor
         let mut left = self.factor();
 
         while let Some(next_token) = self.peek_next_token() {
             match next_token {
                 Token::Star => {
-                    self.consume_next_token();
+                    self.consume_next_token(Token::Star);
                     let right = self.factor();
                     left *= right;
                 }
                 Token::Slash => {
-                    self.consume_next_token();
+                    self.consume_next_token(Token::Slash);
                     let right = self.factor();
                     left /= right;
                 }
@@ -174,33 +184,62 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> f32 {
-        // factor => literal ^ factor | literal
-        let mut left = self.literal();
+        let mut left = self.base();
 
         while let Some(next_token) = self.peek_next_token() {
             match next_token {
                 Token::Carat => {
-                    self.consume_next_token();
+                    self.consume_next_token(Token::Carat);
                     let right = self.factor();
                     left = f32::powf(left, right);
                 }
                 _ => break,
             }
         }
-
         left
     }
 
-    fn literal(&mut self) -> f32 {
-        match self.consume_next_token() {
-            Token::Number(number) => *number as f32,
-            _ => panic!("Unexpected token, expected literal"),
+    fn base(&mut self) -> f32 {
+        let mut result = 0.0;
+
+        while let Some(next_token) = self.peek_next_token() {
+            match next_token {
+                Token::Number(number) => {
+                    result = *number as f32;
+                    self.consume_next_token(Token::Number(*number));
+                }
+                Token::OpenParen => result = self.parenthesized(),
+                Token::Minus => result = self.unary(),
+                _ => break,
+            }
         }
+        result
+    }
+
+    fn parenthesized(&mut self) -> f32 {
+        self.consume_next_token(Token::OpenParen);
+        let result = self.expression();
+        self.consume_next_token(Token::CloseParen);
+        result
+    }
+
+    fn unary(&mut self) -> f32 {
+        self.consume_next_token(Token::Minus);
+        let result = self.factor();
+        -1.0 * result
     }
 }
 
+// GRAMMAR:
+// expression => term + term | term - term | term
+// term => factor * factor | factor / factor | factor
+// factor => base ^ factor | base
+// base => NUMBER | unary | parenthesized
+// parenthesized => ( expression )
+// unary => - factor
+
 fn main() {
-    let s = "5*4+2^2^3+4*5-5/2";
+    let s = "7*(2+4/2)+(-2)^-2";
     println!("{s}");
 
     let mut lexer = Lexer::new(s);
