@@ -16,6 +16,7 @@ enum Token {
     Cos,
     Tan,
     Ln,
+    ToRad,
     Pi,
     E,
     Eof,
@@ -55,7 +56,7 @@ impl<'a> Lexer<'a> {
         let mut ident_chars: Vec<char> = Vec::new();
 
         while let Some(character) = chars.next() {
-            if character.is_alphabetic() {
+            if character.is_alphabetic() || character == '_' {
                 ident_chars.push(character);
             } else {
                 break;
@@ -69,6 +70,7 @@ impl<'a> Lexer<'a> {
             "cos" => (Token::Cos, 3),
             "tan" => (Token::Tan, 3),
             "ln" => (Token::Ln, 2),
+            "to_rad" => (Token::ToRad, 6),
             "pi" => (Token::Pi, 2),
             "e" => (Token::E, 1),
             _ => (Token::Ident(ident), ident_chars.len()),
@@ -109,7 +111,7 @@ impl<'a> Lexer<'a> {
                 '^' => (Token::Carat, 1),
                 '0'..='9' => self.tokenize_number(),
                 'a'..='z' | 'A'..='Z' => self.tokenize_ident(),
-                _ => panic!("unknown char: {next_char}"),
+                _ => panic!("Unknown character: {next_char}"),
             };
 
             self.remaining_text = &self.remaining_text[length..];
@@ -272,6 +274,12 @@ impl<'a> Parser<'a> {
                     let arg_value = self.parenthesized();
                     f32::ln(arg_value)
                 }
+                Token::ToRad => {
+                    self.consume_next_token(Token::ToRad);
+                    // arg_value is in degrees
+                    let arg_value = self.parenthesized();
+                    f32::to_radians(arg_value)
+                }
                 _ => panic!("Unrecognized token: {:?}", next_token),
             }
         } else {
@@ -285,7 +293,7 @@ impl<'a> Parser<'a> {
 // term             => factor * factor | factor / factor | factor
 // factor           => primary ^ factor | primary
 // unary            => - factor
-// function         => "sin" | "cos" | "tan" | "ln"
+// function         => "sin" | "cos" | "tan" | "ln" | "deg"
 // parenthesized    => ( expression )
 // primary          => NUMBER | unary | parenthesized | function parenthesized | "pi" | "e"
 
@@ -300,7 +308,7 @@ fn main() {
 
         let mut parser = Parser::new(&tokens);
         let result = parser.expression();
-        println!("Result: {result}");
+        println!("{expr} = {result}");
     } else {
         eprintln!("Error: no expression supplied");
     }
