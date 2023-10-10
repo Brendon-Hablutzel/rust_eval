@@ -1,3 +1,4 @@
+use std::env;
 use std::f32::consts::{E, PI};
 
 #[derive(Debug, PartialEq)]
@@ -86,7 +87,11 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let number: u32 = number_chars.iter().collect::<String>().parse().unwrap();
+        let number: u32 = number_chars
+            .iter()
+            .collect::<String>()
+            .parse()
+            .expect("String made of digit character should be digit");
         (Token::Number(number), number_chars.len())
     }
 
@@ -285,15 +290,18 @@ impl<'a> Parser<'a> {
 // primary          => NUMBER | unary | parenthesized | function parenthesized | "pi" | "e"
 
 fn main() {
-    let s = "ln(e)*sin(pi/4)";
-    println!("{s}");
+    let mut args = env::args();
+    args.next(); // skip initial argument
 
-    let mut lexer = Lexer::new(s);
-    lexer.tokenize_all();
-    let tokens = lexer.tokens;
-    println!("{:?}", tokens);
+    if let Some(expr) = args.next() {
+        let mut lexer = Lexer::new(&expr);
+        lexer.tokenize_all();
+        let tokens = lexer.tokens;
 
-    let mut parser = Parser::new(&tokens);
-    let res = parser.expression();
-    println!("{res}");
+        let mut parser = Parser::new(&tokens);
+        let result = parser.expression();
+        println!("Result: {result}");
+    } else {
+        eprintln!("Error: no expression supplied");
+    }
 }
